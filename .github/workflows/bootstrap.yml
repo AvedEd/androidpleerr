@@ -23,3 +23,27 @@ jobs:
           git commit -m "Bootstrap: extract androidpleerr project" || echo "nothing to commit"
           git push
 EOF
+name: Bootstrap from zip
+on:
+  workflow_dispatch: {}
+jobs:
+  unzip:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Unzip and move to repo root
+        run: |
+          unzip -o androidpleerr.zip -d _extracted
+          shopt -s dotglob
+          mv _extracted/androidpleerr/* .
+          rm -rf _extracted androidpleerr.zip
+      - name: Commit extracted project
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Bootstrap: extract androidpleerr project" || echo "nothing to commit"
+          git pushp we
+        
