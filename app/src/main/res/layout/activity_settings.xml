@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/bg_dark">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Настройки"
+            android:textColor="@color/text_primary"
+            android:textSize="22sp"
+            android:textStyle="bold"
+            android:layout_marginBottom="16dp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Адрес TorrServer (host:port)"
+            android:textColor="@color/text_secondary"
+            android:textSize="13sp" />
+
+        <EditText
+            android:id="@+id/serverHostInput"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="127.0.0.1:8090"
+            android:textColorHint="@color/text_secondary"
+            android:textColor="@color/text_primary"
+            android:padding="12dp"
+            android:background="@color/surface"
+            android:layout_marginTop="6dp"
+            android:layout_marginBottom="8dp" />
+
+        <Button
+            android:id="@+id/testConnectionButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Проверить соединение"
+            android:backgroundTint="@color/surface"
+            android:textColor="@color/text_primary"
+            android:layout_marginBottom="20dp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Ссылка на M3U-плейлист (IPTV)"
+            android:textColor="@color/text_secondary"
+            android:textSize="13sp" />
+
+        <EditText
+            android:id="@+id/iptvUrlInput"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="https://example.com/playlist.m3u"
+            android:textColorHint="@color/text_secondary"
+            android:textColor="@color/text_primary"
+            android:padding="12dp"
+            android:background="@color/surface"
+            android:layout_marginTop="6dp"
+            android:layout_marginBottom="20dp" />
+
+        <com.google.android.material.switchmaterial.SwitchMaterial
+            android:id="@+id/resumeSwitch"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Продолжать с места остановки"
+            android:textColor="@color/text_primary"
+            android:layout_marginBottom="12dp" />
+
+        <com.google.android.material.switchmaterial.SwitchMaterial
+            android:id="@+id/statsOverlaySwitch"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Показывать скорость/пиры при просмотре"
+            android:textColor="@color/text_primary"
+            android:layout_marginBottom="12dp" />
+
+        <com.google.android.material.switchmaterial.SwitchMaterial
+            android:id="@+id/autoNextSwitch"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Автопереход к следующей серии"
+            android:textColor="@color/text_primary"
+            android:layout_marginBottom="20dp" />
+
+        <Button
+            android:id="@+id/saveButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Сохранить"
+            android:backgroundTint="@color/accent"
+            android:textColor="@color/bg_dark"
+            android:layout_marginBottom="12dp" />
+
+        <Button
+            android:id="@+id/checkUpdateButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Проверить обновления"
+            android:backgroundTint="@color/surface"
+            android:textColor="@color/text_primary"
+            android:layout_marginBottom="20dp" />
+
+        <TextView
+            android:id="@+id/versionText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="@color/text_secondary"
+            android:textSize="12sp"
+            android:layout_gravity="center_horizontal" />
+
+    </LinearLayout>
+</ScrollView>
