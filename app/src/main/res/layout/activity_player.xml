@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="#000000">
@@ -9,8 +11,7 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         app:use_controller="true"
-        app:resize_mode="fit"
-        xmlns:app="http://schemas.android.com/apk/res-auto" />
+        app:resize_mode="fit" />
 
     <TextView
         android:id="@+id/statusText"
@@ -40,16 +41,52 @@
             android:textSize="12sp" />
     </FrameLayout>
 
-    <!-- Episode picker, bottom strip -->
-    <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/episodeList"
+    <!-- Bottom block: track-selection buttons (audio/subtitles) above the episode strip. -->
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom"
-        android:orientation="horizontal"
-        android:background="#99000000"
-        android:padding="4dp"
-        tools:listitem="@layout/item_episode"
-        xmlns:tools="http://schemas.android.com/tools" />
+        android:orientation="vertical">
+
+        <LinearLayout
+            android:id="@+id/trackButtonsRow"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="end"
+            android:orientation="horizontal"
+            android:background="#99000000"
+            android:padding="6dp">
+
+            <Button
+                android:id="@+id/audioTrackButton"
+                style="?android:attr/borderlessButtonStyle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="🔊 Озвучка"
+                android:textAllCaps="false"
+                android:textColor="#4FD1C5"
+                android:textSize="13sp" />
+
+            <Button
+                android:id="@+id/subtitleTrackButton"
+                style="?android:attr/borderlessButtonStyle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="💬 Субтитры"
+                android:textAllCaps="false"
+                android:textColor="#4FD1C5"
+                android:textSize="13sp" />
+        </LinearLayout>
+
+        <!-- Episode picker, only visible for multi-file torrents -->
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/episodeList"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:background="#99000000"
+            android:padding="4dp"
+            tools:listitem="@layout/item_episode" />
+    </LinearLayout>
 
 </FrameLayout>
