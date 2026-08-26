@@ -1,0 +1,10 @@
+name: Apply update2
+on: workflow_dispatch
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - run: unzip -o androidpleerr-update2.zip -d _u && shopt -s dotglob && cp -a _u/androidpleerr/. . && rm -rf _u androidpleerr-update2.zip && git config user.name bot && git config user.email bot@users.noreply.github.com && git add -A && git commit -m update2 || true && git push
