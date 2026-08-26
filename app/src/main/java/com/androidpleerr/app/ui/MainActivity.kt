@@ -6,11 +6,9 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
-import com.androidpleerr.app.BuildConfig
 import com.androidpleerr.app.data.TorrServerClient
 import com.androidpleerr.app.databinding.ActivityMainBinding
 import com.androidpleerr.app.prefs.AppPrefs
-import com.androidpleerr.app.update.UpdateManager
 import com.androidpleerr.app.util.TorrServerUrlUtils
 import kotlinx.coroutines.launch
 
@@ -60,7 +58,8 @@ class MainActivity : AppCompatActivity() {
             startActivity(Intent(this, SettingsActivity::class.java))
         }
 
-        checkForUpdates()
+        // Update checks now happen ONLY when the user taps "Проверить обновления"
+        // in Settings — no automatic/background check on launch anymore.
     }
 
     override fun onResume() {
@@ -111,13 +110,4 @@ class MainActivity : AppCompatActivity() {
         startActivity(intent)
     }
 
-    private fun checkForUpdates() {
-        val repo = BuildConfig.UPDATE_REPO
-        if (repo.isBlank()) return
-        lifecycleScope.launch {
-            val updater = UpdateManager(this@MainActivity, repo)
-            val release = updater.checkForUpdate(BuildConfig.VERSION_NAME) ?: return@launch
-            Toast.makeText(this@MainActivity, "Доступно обновление: ${release.tag_name}", Toast.LENGTH_LONG).show()
-        }
-    }
 }

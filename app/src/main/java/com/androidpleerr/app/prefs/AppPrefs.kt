@@ -57,4 +57,26 @@ class AppPrefs(context: Context) {
     }
 
     fun loadPosition(fileKey: String): Long = prefs.getLong("pos_$fileKey", 0L)
+
+    // ---- IPTV favorites (stored as a set of channel URLs, which are stable per-channel) ----
+
+    fun isFavoriteChannel(url: String): Boolean =
+        prefs.getStringSet("iptv_favorites", emptySet())?.contains(url) == true
+
+    fun toggleFavoriteChannel(url: String) {
+        val current = HashSet(prefs.getStringSet("iptv_favorites", emptySet()).orEmpty())
+        if (current.contains(url)) current.remove(url) else current.add(url)
+        prefs.edit().putStringSet("iptv_favorites", current).apply()
+    }
+
+    fun favoriteChannelUrls(): Set<String> =
+        prefs.getStringSet("iptv_favorites", emptySet()).orEmpty()
+
+    // ---- Offline playlist cache: raw M3U text saved after every successful fetch ----
+
+    fun cachePlaylist(rawM3uText: String) {
+        prefs.edit().putString("iptv_playlist_cache", rawM3uText).apply()
+    }
+
+    fun cachedPlaylist(): String? = prefs.getString("iptv_playlist_cache", null)
 }

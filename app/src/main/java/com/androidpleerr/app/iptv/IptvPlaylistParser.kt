@@ -46,13 +46,19 @@ object IptvPlaylistParser {
     }
 
     /** Downloads and parses a playlist. Must be called off the main thread. */
-    fun fetchAndParse(url: String): List<IptvChannel> {
+    fun fetchAndParse(url: String): List<IptvChannel> = fetchRaw(url).let { parsePlaylist(it) }
+
+    /**
+     * Downloads the raw M3U text (without parsing). Exposed separately so callers can
+     * cache the raw text for offline use via [AppPrefs.cachePlaylist]. Must be called
+     * off the main thread.
+     */
+    fun fetchRaw(url: String): String {
         val connection = URL(url).openConnection()
         connection.connectTimeout = 8000
         connection.readTimeout = 15000
         BufferedReader(InputStreamReader(connection.getInputStream())).use { reader ->
-            val text = reader.readText()
-            return parsePlaylist(text)
+            return reader.readText()
         }
     }
 }

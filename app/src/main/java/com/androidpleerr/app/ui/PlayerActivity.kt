@@ -43,6 +43,11 @@ class PlayerActivity : AppCompatActivity() {
     private val statsHandler = Handler(Looper.getMainLooper())
     private var statsRunnable: Runnable? = null
 
+    // Full ordered episode list for the current torrent + index of what's playing,
+    // used to support real auto-next-episode behaviour.
+    private var episodeFiles: List<TorrentFileStat> = emptyList()
+    private var currentEpisodeIndex: Int = -1
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityPlayerBinding.inflate(layoutInflater)
@@ -74,7 +79,7 @@ class PlayerActivity : AppCompatActivity() {
                 return@launch
             }
             setupEpisodes(info)
-            val firstVideo = EpisodeListAdapter.videoFiles(info.fileStats.orEmpty()).firstOrNull()
+            val firstVideo = episodeFiles.firstOrNull()
             if (firstVideo != null) {
                 playFile(h, firstVideo)
             } else {
@@ -86,22 +91,30 @@ class PlayerActivity : AppCompatActivity() {
 
     private fun setupEpisodes(info: TorrentInfo) {
         val videos = EpisodeListAdapter.videoFiles(info.fileStats.orEmpty())
+        episodeFiles = videos
         if (videos.size <= 1) {
             binding.episodeList.visibility = View.GONE
             return
         }
         binding.episodeList.visibility = View.VISIBLE
         binding.episodeList.layoutManager = LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
-        binding.episodeList.adapter = EpisodeListAdapter(videos, currentFile?.id ?: -1) { file ->
+        refreshEpisodeAdapter()
+    }
+
+    private fun refreshEpisodeAdapter() {
+        if (episodeFiles.size <= 1) return
+        binding.episodeList.adapter = EpisodeListAdapter(episodeFiles, currentFile?.id ?: -1) { file ->
             hash?.let { playFile(it, file) }
         }
     }
 
     private fun playFile(hash: String, file: TorrentFileStat) {
         currentFile = file
+        currentEpisodeIndex = episodeFiles.indexOfFirst { it.id == file.id }
         val c = client ?: return
         val url = c.streamUrl(hash, file.id)
         startPlayback(url, resumeKey = file.path)
+        refreshEpisodeAdapter()
     }
 
     private fun startPlayback(url: String, resumeKey: String) {
@@ -140,10 +153,17 @@ class PlayerActivity : AppCompatActivity() {
 
     private var currentResumeKey: String? = null
 
+    /** Called when the current file finishes and "auto-next" is enabled in Settings. */
     private fun playNextEpisode() {
-        val adapter = binding.episodeList.adapter as? EpisodeListAdapter ?: return
-        // Simplified: rely on the adapter's own click handling; a production build would
-        // track index explicitly. Left here as the extension point for auto-next.
+        val h = hash ?: return
+        if (currentEpisodeIndex < 0 || episodeFiles.isEmpty()) return
+        val nextIndex = currentEpisodeIndex + 1
+        if (nextIndex >= episodeFiles.size) {
+            // Was the last episode — nothing further to auto-play.
+            return
+        }
+        val nextFile = episodeFiles[nextIndex]
+        playFile(h, nextFile)
     }
 
     private fun startStatsPolling(hash: String) {

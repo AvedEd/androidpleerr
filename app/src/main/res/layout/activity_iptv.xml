@@ -15,6 +15,18 @@
         android:textStyle="bold"
         android:layout_marginBottom="12dp" />
 
+    <TextView
+        android:id="@+id/offlineBanner"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Офлайн-режим: показан сохранённый плейлист"
+        android:textColor="@color/bg_dark"
+        android:background="@color/accent"
+        android:padding="8dp"
+        android:textSize="12sp"
+        android:visibility="gone"
+        android:layout_marginBottom="8dp" />
+
     <EditText
         android:id="@+id/searchInput"
         android:layout_width="match_parent"
@@ -24,6 +36,14 @@
         android:textColor="@color/text_primary"
         android:padding="12dp"
         android:background="@color/surface"
+        android:layout_marginBottom="8dp" />
+
+    <com.google.android.material.switchmaterial.SwitchMaterial
+        android:id="@+id/favoritesToggle"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Только избранное"
+        android:textColor="@color/text_primary"
         android:layout_marginBottom="12dp" />
 
     <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
