@@ -50,6 +50,44 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:text="Предпочитаемый язык озвучки (например: rus)"
+            android:textColor="@color/text_secondary"
+            android:textSize="13sp" />
+
+        <EditText
+            android:id="@+id/audioLangInput"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="rus"
+            android:textColorHint="@color/text_secondary"
+            android:textColor="@color/text_primary"
+            android:padding="12dp"
+            android:background="@color/surface"
+            android:layout_marginTop="6dp"
+            android:layout_marginBottom="8dp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Предпочитаемый язык субтитров (например: rus)"
+            android:textColor="@color/text_secondary"
+            android:textSize="13sp" />
+
+        <EditText
+            android:id="@+id/subtitleLangInput"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="rus"
+            android:textColorHint="@color/text_secondary"
+            android:textColor="@color/text_primary"
+            android:padding="12dp"
+            android:background="@color/surface"
+            android:layout_marginTop="6dp"
+            android:layout_marginBottom="20dp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
             android:text="Ссылка на M3U-плейлист (IPTV)"
             android:textColor="@color/text_secondary"
             android:textSize="13sp" />

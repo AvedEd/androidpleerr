@@ -24,6 +24,8 @@ class SettingsActivity : AppCompatActivity() {
 
         binding.serverHostInput.setText(prefs.serverHost)
         binding.iptvUrlInput.setText(prefs.iptvPlaylistUrl)
+        binding.audioLangInput.setText(prefs.preferredAudioLanguage)
+        binding.subtitleLangInput.setText(prefs.preferredSubtitleLanguage)
         binding.resumeSwitch.isChecked = prefs.resumePlayback
         binding.statsOverlaySwitch.isChecked = prefs.showStatsOverlay
         binding.autoNextSwitch.isChecked = prefs.autoNextEpisode
@@ -32,6 +34,8 @@ class SettingsActivity : AppCompatActivity() {
         binding.saveButton.setOnClickListener {
             prefs.serverHost = binding.serverHostInput.text?.toString()?.trim().orEmpty().ifBlank { "127.0.0.1:8090" }
             prefs.iptvPlaylistUrl = binding.iptvUrlInput.text?.toString()?.trim().orEmpty()
+            prefs.preferredAudioLanguage = binding.audioLangInput.text?.toString()?.trim().orEmpty()
+            prefs.preferredSubtitleLanguage = binding.subtitleLangInput.text?.toString()?.trim().orEmpty()
             prefs.resumePlayback = binding.resumeSwitch.isChecked
             prefs.showStatsOverlay = binding.statsOverlaySwitch.isChecked
             prefs.autoNextEpisode = binding.autoNextSwitch.isChecked

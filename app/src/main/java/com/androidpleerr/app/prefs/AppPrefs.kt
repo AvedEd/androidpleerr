@@ -18,6 +18,17 @@ class AppPrefs(context: Context) {
         get() = prefs.getString("iptv_playlist_url", "") ?: ""
         set(value) = prefs.edit().putString("iptv_playlist_url", value).apply()
 
+    // Preferred language codes (e.g. "rus", "ru", "eng") used to auto-select a matching
+    // audio/subtitle track when a new file starts playing, instead of always falling
+    // back to whatever track the file lists first. Empty = no auto-selection.
+    var preferredAudioLanguage: String
+        get() = prefs.getString("pref_audio_lang", "") ?: ""
+        set(value) = prefs.edit().putString("pref_audio_lang", value).apply()
+
+    var preferredSubtitleLanguage: String
+        get() = prefs.getString("pref_subtitle_lang", "") ?: ""
+        set(value) = prefs.edit().putString("pref_subtitle_lang", value).apply()
+
     var seekStepSeconds: Int
         get() = prefs.getInt("seek_step", 10)
         set(value) = prefs.edit().putInt("seek_step", value).apply()

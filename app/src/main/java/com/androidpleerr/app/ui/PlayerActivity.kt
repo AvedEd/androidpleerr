@@ -1,9 +1,14 @@
 package com.androidpleerr.app.ui
 
 import android.app.AlertDialog
+import android.content.Context
+import android.media.AudioManager
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.provider.Settings as SystemSettings
+import android.view.GestureDetector
+import android.view.MotionEvent
 import android.view.View
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
@@ -23,6 +28,7 @@ import com.androidpleerr.app.data.TorrentInfo
 import com.androidpleerr.app.databinding.ActivityPlayerBinding
 import com.androidpleerr.app.prefs.AppPrefs
 import com.androidpleerr.app.util.Formatting
+import kotlin.math.abs
 import kotlinx.coroutines.launch
 
 /**
@@ -31,10 +37,16 @@ import kotlinx.coroutines.launch
  *    overlay and, for multi-file torrents, an episode picker.
  *  - Direct mode (EXTRA_DIRECT_URL set): plays an arbitrary URL, used by IPTV.
  *
- * Also exposes "Озвучка" / "Субтитры" buttons at the bottom that list every audio/text
- * track embedded in the currently playing file (label comes straight from the file's own
- * metadata — e.g. a dubbing studio's track name in an MKV — falling back to the track's
- * language code, or a plain "Дорожка N" if neither is present).
+ * Gestures (handled by [gestureOverlay], a transparent View on top of the player):
+ *  - Double-tap left/right half  -> seek backward/forward, with a fading "±N сек" label.
+ *  - Vertical swipe, left half   -> screen brightness.
+ *  - Vertical swipe, right half  -> media volume.
+ *  Plain taps are additionally forwarded to the underlying PlayerView so its native
+ *  play/pause button and seek bar keep working as normal.
+ *
+ * Track selection: "🔊"/"💬" buttons in the bottom icon strip list every audio/text
+ * track embedded in the file (label = file's own track name > language > "Дорожка N").
+ * If a preferred language is set in Settings, it's auto-applied once per file.
  */
 class PlayerActivity : AppCompatActivity() {
 
@@ -42,33 +54,48 @@ class PlayerActivity : AppCompatActivity() {
         const val EXTRA_HASH = "extra_hash"
         const val EXTRA_TITLE = "extra_title"
         const val EXTRA_DIRECT_URL = "extra_direct_url"
+        private const val SEEK_FEEDBACK_MS = 700L
     }
 
     private lateinit var binding: ActivityPlayerBinding
     private lateinit var prefs: AppPrefs
     private var client: TorrServerClient? = null
     private var player: ExoPlayer? = null
-    private var trackSelector: DefaultTrackSelector? = null
     private var hash: String? = null
     private var currentFile: TorrentFileStat? = null
     private val statsHandler = Handler(Looper.getMainLooper())
     private var statsRunnable: Runnable? = null
 
-    // Full ordered episode list for the current torrent + index of what's playing,
-    // used to support real auto-next-episode behaviour.
     private var episodeFiles: List<TorrentFileStat> = emptyList()
     private var currentEpisodeIndex: Int = -1
+    private var currentResumeKey: String? = null
+
+    /** Reset per media item so the preferred-language override only applies once. */
+    private var preferredLanguageApplied = false
+
+    // --- Gesture state ---
+    private lateinit var gestureDetector: GestureDetector
+    private lateinit var audioManager: AudioManager
+    private var dragStartY = 0f
+    private var dragIsLeftSide = false
+    private var dragStartVolume = 0
+    private var dragStartBrightness = 0f
+    private var isDragging = false
+    private val dragThresholdPx = 24f
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityPlayerBinding.inflate(layoutInflater)
         setContentView(binding.root)
         prefs = AppPrefs(this)
+        audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
 
         title = intent.getStringExtra(EXTRA_TITLE) ?: ""
 
         binding.audioTrackButton.setOnClickListener { showTrackPicker(C.TRACK_TYPE_AUDIO) }
         binding.subtitleTrackButton.setOnClickListener { showTrackPicker(C.TRACK_TYPE_TEXT) }
+
+        setupGestures()
 
         val directUrl = intent.getStringExtra(EXTRA_DIRECT_URL)
         if (directUrl != null) {
@@ -133,10 +160,9 @@ class PlayerActivity : AppCompatActivity() {
 
     private fun startPlayback(url: String, resumeKey: String) {
         releasePlayer()
+        preferredLanguageApplied = false
 
         val selector = DefaultTrackSelector(this)
-        trackSelector = selector
-
         val exoPlayer = ExoPlayer.Builder(this)
             .setTrackSelector(selector)
             .build()
@@ -164,6 +190,13 @@ class PlayerActivity : AppCompatActivity() {
                     playNextEpisode()
                 }
             }
+
+            override fun onTracksChanged(tracks: Tracks) {
+                if (!preferredLanguageApplied) {
+                    preferredLanguageApplied = true
+                    applyPreferredLanguages(tracks)
+                }
+            }
         })
 
         exoPlayer.prepare()
@@ -171,23 +204,63 @@ class PlayerActivity : AppCompatActivity() {
         currentResumeKey = resumeKey
     }
 
-    private var currentResumeKey: String? = null
-
     /** Called when the current file finishes and "auto-next" is enabled in Settings. */
     private fun playNextEpisode() {
         val h = hash ?: return
         if (currentEpisodeIndex < 0 || episodeFiles.isEmpty()) return
         val nextIndex = currentEpisodeIndex + 1
-        if (nextIndex >= episodeFiles.size) {
-            // Was the last episode — nothing further to auto-play.
-            return
-        }
-        val nextFile = episodeFiles[nextIndex]
-        playFile(h, nextFile)
+        if (nextIndex >= episodeFiles.size) return
+        playFile(h, episodeFiles[nextIndex])
     }
 
     // ---------------------------------------------------------------------------------
-    // Audio / subtitle track selection
+    // Preferred audio/subtitle language auto-selection
+    // ---------------------------------------------------------------------------------
+
+    private fun applyPreferredLanguages(tracks: Tracks) {
+        val p = player ?: return
+        val audioLang = prefs.preferredAudioLanguage.trim()
+        val subLang = prefs.preferredSubtitleLanguage.trim()
+        if (audioLang.isBlank() && subLang.isBlank()) return
+
+        var builder = p.trackSelectionParameters.buildUpon()
+        var changed = false
+
+        if (audioLang.isNotBlank()) {
+            findMatchingTrack(tracks, C.TRACK_TYPE_AUDIO, audioLang)?.let { option ->
+                builder = builder
+                    .setTrackTypeDisabled(C.TRACK_TYPE_AUDIO, false)
+                    .setOverrideForType(TrackSelectionOverride(option.group.mediaTrackGroup, option.indexInGroup))
+                changed = true
+            }
+        }
+        if (subLang.isNotBlank()) {
+            findMatchingTrack(tracks, C.TRACK_TYPE_TEXT, subLang)?.let { option ->
+                builder = builder
+                    .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
+                    .setOverrideForType(TrackSelectionOverride(option.group.mediaTrackGroup, option.indexInGroup))
+                changed = true
+            }
+        }
+        if (changed) p.trackSelectionParameters = builder.build()
+    }
+
+    private fun findMatchingTrack(tracks: Tracks, type: Int, langQuery: String): TrackOption? {
+        for (group in tracks.groups.filter { it.type == type }) {
+            for (i in 0 until group.length) {
+                if (!group.isTrackSupported(i)) continue
+                val format = group.getTrackFormat(i)
+                val lang = format.language ?: continue
+                if (lang.contains(langQuery, ignoreCase = true) || langQuery.contains(lang, ignoreCase = true)) {
+                    return TrackOption(group, i, labelFor(format, i))
+                }
+            }
+        }
+        return null
+    }
+
+    // ---------------------------------------------------------------------------------
+    // Audio / subtitle track selection dialog
     // ---------------------------------------------------------------------------------
 
     private data class TrackOption(
@@ -249,18 +322,14 @@ class PlayerActivity : AppCompatActivity() {
 
     private fun isSelected(option: TrackOption): Boolean {
         val p = player ?: return false
-        return p.currentTracks.groups.any { g ->
-            g == option.group && g.isTrackSelected(option.indexInGroup)
-        }
+        return p.currentTracks.groups.any { g -> g == option.group && g.isTrackSelected(option.indexInGroup) }
     }
 
     private fun selectTrack(option: TrackOption) {
         val p = player ?: return
         p.trackSelectionParameters = p.trackSelectionParameters.buildUpon()
             .setTrackTypeDisabled(option.group.type, false)
-            .setOverrideForType(
-                TrackSelectionOverride(option.group.mediaTrackGroup, option.indexInGroup)
-            )
+            .setOverrideForType(TrackSelectionOverride(option.group.mediaTrackGroup, option.indexInGroup))
             .build()
     }
 
@@ -270,6 +339,107 @@ class PlayerActivity : AppCompatActivity() {
             .setTrackTypeDisabled(trackType, true)
             .clearOverridesOfType(trackType)
             .build()
+    }
+
+    // ---------------------------------------------------------------------------------
+    // Gestures: double-tap seek, swipe brightness/volume
+    // ---------------------------------------------------------------------------------
+
+    private fun setupGestures() {
+        gestureDetector = GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
+            override fun onDown(e: MotionEvent): Boolean = true
+
+            override fun onDoubleTap(e: MotionEvent): Boolean {
+                val isRight = e.x > binding.gestureOverlay.width / 2f
+                val step = prefs.seekStepSeconds
+                seekRelative(if (isRight) step else -step)
+                showSeekFeedback(isRight, step)
+                return true
+            }
+        })
+
+        binding.gestureOverlay.setOnTouchListener { view, event ->
+            gestureDetector.onTouchEvent(event)
+            // Forward the raw event to the PlayerView underneath so its own
+            // play/pause button, seek bar and tap-to-toggle-controls keep working.
+            binding.playerView.dispatchTouchEvent(event)
+
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    dragStartY = event.y
+                    dragIsLeftSide = event.x < view.width / 2f
+                    dragStartVolume = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
+                    dragStartBrightness = currentBrightness()
+                    isDragging = false
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    val dy = dragStartY - event.y
+                    if (abs(dy) > dragThresholdPx) {
+                        isDragging = true
+                        val fraction = dy / view.height.coerceAtLeast(1)
+                        if (dragIsLeftSide) {
+                            adjustBrightness(fraction)
+                        } else {
+                            adjustVolume(fraction)
+                        }
+                    }
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    if (isDragging) hideAdjustFeedbackSoon()
+                    isDragging = false
+                }
+            }
+            true
+        }
+    }
+
+    private fun seekRelative(deltaSeconds: Int) {
+        val p = player ?: return
+        val newPos = (p.currentPosition + deltaSeconds * 1000L).coerceIn(0, p.duration.coerceAtLeast(0))
+        p.seekTo(newPos)
+    }
+
+    private fun showSeekFeedback(isRight: Boolean, step: Int) {
+        val label = binding.let { if (isRight) it.seekFeedbackRight else it.seekFeedbackLeft }
+        label.text = if (isRight) "+$step сек »" else "« -$step сек"
+        label.animate().cancel()
+        label.alpha = 1f
+        label.animate().alpha(0f).setStartDelay(SEEK_FEEDBACK_MS).setDuration(250).start()
+    }
+
+    private fun currentBrightness(): Float {
+        val lp = window.attributes
+        if (lp.screenBrightness in 0f..1f) return lp.screenBrightness
+        return try {
+            SystemSettings.System.getInt(contentResolver, SystemSettings.System.SCREEN_BRIGHTNESS) / 255f
+        } catch (e: Exception) {
+            0.5f
+        }
+    }
+
+    private fun adjustBrightness(deltaFraction: Float) {
+        val newValue = (dragStartBrightness + deltaFraction).coerceIn(0.02f, 1f)
+        val lp = window.attributes
+        lp.screenBrightness = newValue
+        window.attributes = lp
+        showAdjustFeedback("Яркость ${(newValue * 100).toInt()}%")
+    }
+
+    private fun adjustVolume(deltaFraction: Float) {
+        val maxVol = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+        val newVol = (dragStartVolume + deltaFraction * maxVol).toInt().coerceIn(0, maxVol)
+        audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, newVol, 0)
+        val percent = if (maxVol > 0) newVol * 100 / maxVol else 0
+        showAdjustFeedback("Громкость $percent%")
+    }
+
+    private fun showAdjustFeedback(text: String) {
+        binding.adjustFeedback.text = text
+        binding.adjustFeedback.visibility = View.VISIBLE
+    }
+
+    private fun hideAdjustFeedbackSoon() {
+        binding.adjustFeedback.postDelayed({ binding.adjustFeedback.visibility = View.GONE }, 400)
     }
 
     // ---------------------------------------------------------------------------------
@@ -300,7 +470,6 @@ class PlayerActivity : AppCompatActivity() {
             p.release()
         }
         player = null
-        trackSelector = null
     }
 
     override fun onStop() {
