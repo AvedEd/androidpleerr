@@ -2,10 +2,12 @@ package com.androidpleerr.app.ui
 
 import android.content.Intent
 import android.os.Bundle
+import android.view.View
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
+import com.androidpleerr.app.data.ContinueWatchingItem
 import com.androidpleerr.app.data.TorrServerClient
 import com.androidpleerr.app.databinding.ActivityMainBinding
 import com.androidpleerr.app.prefs.AppPrefs
@@ -19,6 +21,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var prefs: AppPrefs
     private lateinit var client: TorrServerClient
     private lateinit var adapter: TorrentListAdapter
+    private lateinit var continueWatchingAdapter: ContinueWatchingAdapter
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -34,6 +37,16 @@ class MainActivity : AppCompatActivity() {
         )
         binding.torrentList.layoutManager = LinearLayoutManager(this)
         binding.torrentList.adapter = adapter
+
+        continueWatchingAdapter = ContinueWatchingAdapter(
+            onClick = { item -> resumeContinueWatching(item) },
+            onDismiss = { item ->
+                prefs.removeContinueWatching(item.hash, item.fileId)
+                refreshContinueWatching()
+            }
+        )
+        binding.continueWatchingList.layoutManager = LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
+        binding.continueWatchingList.adapter = continueWatchingAdapter
 
         binding.swipeRefresh.setOnRefreshListener { refreshList() }
 
@@ -67,6 +80,7 @@ class MainActivity : AppCompatActivity() {
         // Settings may have changed the server address while we were away.
         client = TorrServerClient(prefs.serverHost, prefs.serverScheme)
         refreshList()
+        refreshContinueWatching()
     }
 
     private fun addTorrent(link: String) {
@@ -96,9 +110,24 @@ class MainActivity : AppCompatActivity() {
             binding.swipeRefresh.isRefreshing = true
             val list = client.listTorrents()
             adapter.submit(list)
-            binding.emptyState.visibility = if (list.isEmpty()) android.view.View.VISIBLE else android.view.View.GONE
+            binding.emptyState.visibility = if (list.isEmpty()) View.VISIBLE else View.GONE
             binding.swipeRefresh.isRefreshing = false
         }
+    }
+
+    private fun refreshContinueWatching() {
+        val items = prefs.listContinueWatching()
+        continueWatchingAdapter.submit(items)
+        binding.continueWatchingSection.visibility = if (items.isEmpty()) View.GONE else View.VISIBLE
+    }
+
+    private fun resumeContinueWatching(item: ContinueWatchingItem) {
+        val intent = Intent(this, PlayerActivity::class.java).apply {
+            putExtra(PlayerActivity.EXTRA_HASH, item.hash)
+            putExtra(PlayerActivity.EXTRA_TITLE, item.title)
+            putExtra(PlayerActivity.EXTRA_RESUME_FILE_ID, item.fileId)
+        }
+        startActivity(intent)
     }
 
     private fun openPlayer(torrent: com.androidpleerr.app.data.TorrentInfo) {

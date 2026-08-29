@@ -44,3 +44,20 @@ data class IptvChannel(
     val logo: String? = null,
     val group: String? = null
 )
+
+/** One configured IPTV source. Users can add several; channels from all of them are merged. */
+data class IptvPlaylist(
+    val name: String,
+    val url: String
+)
+
+/** A torrent file the user started watching but didn't finish — shown as "Continue watching". */
+data class ContinueWatchingItem(
+    val hash: String,
+    val fileId: Int,
+    val filePath: String,
+    val title: String,
+    val positionMs: Long,
+    val durationMs: Long,
+    val updatedAt: Long
+)

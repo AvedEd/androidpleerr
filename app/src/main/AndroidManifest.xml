@@ -28,12 +28,30 @@
             </intent-filter>
         </activity>
 
+        <!--
+          Exported + registered as a video handler so external apps (Lampa, browsers,
+          file managers, etc.) can offer "androidpleerr" in their own "open with"
+          player chooser when the user picks a video/stream to play.
+        -->
         <activity
             android:name=".ui.PlayerActivity"
-            android:exported="false"
+            android:exported="true"
             android:configChanges="orientation|screenSize|keyboardHidden"
             android:screenOrientation="sensorLandscape"
-            android:theme="@style/Theme.AndroidPleerr.Player" />
+            android:theme="@style/Theme.AndroidPleerr.Player">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="http" />
+                <data android:scheme="https" />
+                <data android:scheme="content" />
+                <data android:scheme="file" />
+                <data android:mimeType="video/*" />
+                <data android:mimeType="application/x-mpegURL" />
+                <data android:mimeType="application/vnd.apple.mpegurl" />
+            </intent-filter>
+        </activity>
 
         <activity
             android:name=".ui.IptvActivity"

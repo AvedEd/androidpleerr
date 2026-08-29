@@ -38,6 +38,21 @@
         android:background="@color/surface"
         android:layout_marginBottom="8dp" />
 
+    <!-- Category chips, built from each channel's group-title (or the playlist name as
+         a fallback when the M3U doesn't tag groups). "Все" clears the filter. -->
+    <HorizontalScrollView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:scrollbars="none"
+        android:layout_marginBottom="8dp">
+
+        <LinearLayout
+            android:id="@+id/categoryChips"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal" />
+    </HorizontalScrollView>
+
     <com.google.android.material.switchmaterial.SwitchMaterial
         android:id="@+id/favoritesToggle"
         android:layout_width="wrap_content"
@@ -66,7 +81,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_gravity="center"
-                android:text="Плейлист пуст. Укажи ссылку на M3U в настройках."
+                android:text="Плейлист пуст. Добавь ссылку на M3U в настройках."
                 android:gravity="center"
                 android:textColor="@color/text_secondary"
                 android:visibility="gone" />

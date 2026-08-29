@@ -1,10 +1,14 @@
 package com.androidpleerr.app.prefs
 
 import android.content.Context
+import com.androidpleerr.app.data.ContinueWatchingItem
+import com.androidpleerr.app.data.IptvPlaylist
+import com.google.gson.Gson
 
 /** Small SharedPreferences wrapper holding every user-configurable setting. */
 class AppPrefs(context: Context) {
     private val prefs = context.getSharedPreferences("androidpleerr_prefs", Context.MODE_PRIVATE)
+    private val gson = Gson()
 
     var serverHost: String
         get() = prefs.getString("server_host", "127.0.0.1:8090") ?: "127.0.0.1:8090"
@@ -13,10 +17,6 @@ class AppPrefs(context: Context) {
     var serverScheme: String
         get() = prefs.getString("server_scheme", "http") ?: "http"
         set(value) = prefs.edit().putString("server_scheme", value).apply()
-
-    var iptvPlaylistUrl: String
-        get() = prefs.getString("iptv_playlist_url", "") ?: ""
-        set(value) = prefs.edit().putString("iptv_playlist_url", value).apply()
 
     // Preferred language codes (e.g. "rus", "ru", "eng") used to auto-select a matching
     // audio/subtitle track when a new file starts playing, instead of always falling
@@ -83,11 +83,71 @@ class AppPrefs(context: Context) {
     fun favoriteChannelUrls(): Set<String> =
         prefs.getStringSet("iptv_favorites", emptySet()).orEmpty()
 
-    // ---- Offline playlist cache: raw M3U text saved after every successful fetch ----
+    // ---- IPTV playlists: one or more M3U sources, stored as raw lines --------------------
+    // Each line is either "URL" or "Name|URL". Kept as plain text (not JSON) so it's easy
+    // to edit by hand in a plain multi-line text field in Settings.
 
-    fun cachePlaylist(rawM3uText: String) {
-        prefs.edit().putString("iptv_playlist_cache", rawM3uText).apply()
+    /** Raw, editable text — one playlist per line — shown directly in the Settings field. */
+    fun iptvPlaylistsRawText(): String {
+        val raw = prefs.getString("iptv_playlists_raw", null)
+        if (raw != null) return raw
+        // Migrate the old single-URL preference from earlier versions, if present.
+        val legacy = prefs.getString("iptv_playlist_url", "") ?: ""
+        return legacy
     }
 
-    fun cachedPlaylist(): String? = prefs.getString("iptv_playlist_cache", null)
+    fun saveIptvPlaylistsRawText(raw: String) {
+        prefs.edit().putString("iptv_playlists_raw", raw).apply()
+    }
+
+    fun iptvPlaylists(): List<IptvPlaylist> {
+        val raw = iptvPlaylistsRawText()
+        return raw.lineSequence()
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+            .mapIndexed { index, line ->
+                val parts = line.split("|", limit = 2)
+                if (parts.size == 2 && parts[0].isNotBlank()) {
+                    IptvPlaylist(name = parts[0].trim(), url = parts[1].trim())
+                } else {
+                    IptvPlaylist(name = "Плейлист ${index + 1}", url = parts[0].trim())
+                }
+            }
+            .filter { it.url.isNotBlank() }
+            .toList()
+    }
+
+    // ---- Offline playlist cache: raw M3U text saved per playlist URL after every fetch ----
+
+    private fun cacheKey(playlistUrl: String) = "iptv_cache_${playlistUrl.hashCode()}"
+
+    fun cachePlaylist(playlistUrl: String, rawM3uText: String) {
+        prefs.edit().putString(cacheKey(playlistUrl), rawM3uText).apply()
+    }
+
+    fun cachedPlaylist(playlistUrl: String): String? = prefs.getString(cacheKey(playlistUrl), null)
+
+    // ---- Continue watching: torrent files the user started but hasn't finished -----------
+
+    fun saveContinueWatching(item: ContinueWatchingItem) {
+        val key = "cw_${item.hash}_${item.fileId}"
+        prefs.edit().putString(key, gson.toJson(item)).apply()
+    }
+
+    fun removeContinueWatching(hash: String, fileId: Int) {
+        prefs.edit().remove("cw_${hash}_$fileId").apply()
+    }
+
+    fun listContinueWatching(): List<ContinueWatchingItem> {
+        return prefs.all.entries
+            .filter { it.key.startsWith("cw_") && it.value is String }
+            .mapNotNull { entry ->
+                try {
+                    gson.fromJson(entry.value as String, ContinueWatchingItem::class.java)
+                } catch (e: Exception) {
+                    null
+                }
+            }
+            .sortedByDescending { it.updatedAt }
+    }
 }

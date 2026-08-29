@@ -2,6 +2,7 @@ package com.androidpleerr.app.ui
 
 import android.app.AlertDialog
 import android.content.Context
+import android.content.Intent
 import android.media.AudioManager
 import android.os.Bundle
 import android.os.Handler
@@ -54,6 +55,7 @@ class PlayerActivity : AppCompatActivity() {
         const val EXTRA_HASH = "extra_hash"
         const val EXTRA_TITLE = "extra_title"
         const val EXTRA_DIRECT_URL = "extra_direct_url"
+        const val EXTRA_RESUME_FILE_ID = "extra_resume_file_id"
         private const val SEEK_FEEDBACK_MS = 700L
     }
 
@@ -87,6 +89,8 @@ class PlayerActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivityPlayerBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        // Don't let the screen dim/lock while a video is playing.
+        binding.root.keepScreenOn = true
         prefs = AppPrefs(this)
         audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
 
@@ -97,8 +101,17 @@ class PlayerActivity : AppCompatActivity() {
 
         setupGestures()
 
-        val directUrl = intent.getStringExtra(EXTRA_DIRECT_URL)
+        val externalViewUri = if (intent.action == Intent.ACTION_VIEW) intent.data else null
+        val directUrl = intent.getStringExtra(EXTRA_DIRECT_URL) ?: externalViewUri?.toString()
         if (directUrl != null) {
+            // When launched by another app (Lampa, a browser, a file manager, ...) via
+            // "open with", pick up whatever title it passed along — different apps use
+            // different extra keys, so check the common ones.
+            val externalTitle = intent.getStringExtra(EXTRA_TITLE)
+                ?: intent.getStringExtra("title")
+                ?: intent.getStringExtra(Intent.EXTRA_TITLE)
+            if (externalTitle != null) title = externalTitle
+
             binding.statsOverlay.visibility = View.GONE
             binding.episodeList.visibility = View.GONE
             startPlayback(directUrl, resumeKey = directUrl)
@@ -120,7 +133,9 @@ class PlayerActivity : AppCompatActivity() {
                 return@launch
             }
             setupEpisodes(info)
-            val firstVideo = episodeFiles.firstOrNull()
+            val resumeFileId = intent.getIntExtra(EXTRA_RESUME_FILE_ID, -1)
+            val targetFile = if (resumeFileId != -1) episodeFiles.firstOrNull { it.id == resumeFileId } else null
+            val firstVideo = targetFile ?: episodeFiles.firstOrNull()
             if (firstVideo != null) {
                 playFile(h, firstVideo)
             } else {
@@ -467,9 +482,41 @@ class PlayerActivity : AppCompatActivity() {
     private fun releasePlayer() {
         player?.let { p ->
             currentResumeKey?.let { key -> prefs.savePosition(key, p.currentPosition) }
+            saveContinueWatchingIfApplicable(p)
             p.release()
         }
         player = null
+    }
+
+    /**
+     * Records (or clears) the "continue watching" entry for the file that was just
+     * playing — but only in torrent mode, and only while genuinely mid-way through it.
+     * Barely-started or essentially-finished files are dropped instead of listed.
+     */
+    private fun saveContinueWatchingIfApplicable(p: ExoPlayer) {
+        val h = hash ?: return
+        val file = currentFile ?: return
+        val duration = p.duration
+        val position = p.currentPosition
+        if (duration <= 0) return
+
+        val ratio = position.toFloat() / duration.toFloat()
+        if (position < 5000 || ratio > 0.95f) {
+            prefs.removeContinueWatching(h, file.id)
+            return
+        }
+
+        prefs.saveContinueWatching(
+            com.androidpleerr.app.data.ContinueWatchingItem(
+                hash = h,
+                fileId = file.id,
+                filePath = file.path,
+                title = intent.getStringExtra(EXTRA_TITLE) ?: EpisodeListAdapter.displayName(file.path.substringAfterLast('/')),
+                positionMs = position,
+                durationMs = duration,
+                updatedAt = System.currentTimeMillis()
+            )
+        )
     }
 
     override fun onStop() {
